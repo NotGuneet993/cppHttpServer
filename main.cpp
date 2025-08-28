@@ -4,6 +4,7 @@
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
+#include <unistd.h>
 
 int main() {
     
@@ -17,12 +18,13 @@ int main() {
     }
 
     // create the listening address. 
-    sockaddr_in address;
+    sockaddr_in address {};
     address.sin_family = AF_INET;
     address.sin_port = htons(8888);
 
     if (!inet_aton("127.0.0.1", &address.sin_addr)) {
         std::cerr << "Failed to assign ip address to the socket.\n";
+        return 1;
     }
 
     // bind the socket to the IP & port 
@@ -36,6 +38,20 @@ int main() {
     // INET_ADDRSTRLEN = 16
     char ipv4_address[INET_ADDRSTRLEN];
     std::cout << "The server is listening on " << inet_ntop(AF_INET, &address.sin_addr, ipv4_address, INET_ADDRSTRLEN) << ":" << ntohs(address.sin_port) << "\n";
+
+    while (true) {
+        int clientSocket = accept(serverSocket, nullptr, nullptr);
+        if (clientSocket == -1) {
+            std::cerr << "Failed to accept the message.\n";
+        }
+
+        // recieving data
+        char buffer[1024] = { 0 };
+        recv(clientSocket, buffer, sizeof(buffer), 0);
+        std::cout << "Message from client: " << buffer << "\n";
+    }
+
+    close(serverSocket);
 
     return 0;
 }
