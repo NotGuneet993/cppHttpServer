@@ -5,9 +5,14 @@
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include <unistd.h>
+#include <string>
 
 int main() {
     
+    // response string 
+    std::string responseStr = "HTTP/1.1 200 OK\r\n\r\n <html>hello</html>";
+    const char *pageResponse = responseStr.c_str();
+
     // create the socket. 
     // AF_INET is IPv4 & SOCK_STREAM is TCP
     int serverSocket = socket(AF_INET, SOCK_STREAM, 0);
@@ -49,6 +54,10 @@ int main() {
         char buffer[1024] = { 0 };
         recv(clientSocket, buffer, sizeof(buffer), 0);
         std::cout << "Message from client: " << buffer << "\n";
+
+        // send data back 
+        send(clientSocket, pageResponse, responseStr.size(), 0);
+        close(clientSocket);
     }
 
     close(serverSocket);
