@@ -10,3 +10,7 @@ https://developer.mozilla.org/en-US/docs/Web/HTTP
 Create a simple echo TCP server. I'll start by making an echo server.
 
 Go through the whole socket lifecycle: socket -> bind -> listen -> accept -> recv/send -> close.
+
+
+## Step 2 
+Set up the class structure to scale. The HTTP server will be inherited from the TCP server. 

@@ -10,7 +10,14 @@
 int main() {
     
     // response string 
-    std::string responseStr = "HTTP/1.1 200 OK\r\n\r\n <html>hello</html>";
+    std::string responseBody = "<html><h1>This is a test server</h1></html>";
+    std::string responseHeaders = 
+    "HTTP/1.1 200 OK\r\n"
+    "Connection: close\r\n"
+    "Content-Type: text/html; charset=utf-8\r\n"
+    "Content-Length: " + std::to_string(responseBody.size()) + "\r\n"
+    "\r\n";
+    std::string responseStr = responseHeaders + responseBody;
     const char *pageResponse = responseStr.c_str();
 
     // create the socket. 
