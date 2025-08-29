@@ -4,6 +4,8 @@
 #include <iostream>
 #include <netinet/in.h>
 
+class IConnectionHandler;
+
 class TCP {
 public:
 
