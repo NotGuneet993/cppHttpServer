@@ -1,7 +1,7 @@
 #ifndef TCP_H
 #define TCP_H
 
-#include <iostream>
+#include <string>
 #include <netinet/in.h>
 
 class IConnectionHandler;
