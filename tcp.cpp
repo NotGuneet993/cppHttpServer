@@ -1,50 +1,26 @@
 #include <iostream>
+#include "tcp.h"
 #include <sys/socket.h>
-#include <netinet/in.h>
 #include <arpa/inet.h>
 #include <unistd.h>
-#include <string>
 #include <cstdlib>
+#include <stdexcept>
 
-class TcpSocket {
-    public:
-        TcpSocket(const char* ip, int port) {
-            address.sin_family = AF_INET;
-            address.sin_port = htons(port);
+TCP::TCP(const std::string& ip, int port) {
+    this->address.sin_family = AF_INET;
+    this->address.sin_port = htons(port);
 
-            if (!inet_aton(ip, &address.sin_addr)) {
-                std::cerr << "Failed to assign ip address to the socket.\n";
-                exit(1);
-            }
-            
-            this->serverSocket = socket(AF_INET, SOCK_STREAM, 0);
-            if (this->serverSocket == -1) {
-                std::cerr << "Failed to create a socket.\n";
-                exit(1);
-            }
-        }
+    if (inet_pton(AF_INET, ip.c_str(), &this->address.sin_addr) != 1) {
+        std::cerr << "Failed to assign ip address to the socket.\n";
+        throw std::runtime_error("Failed to assign IP address to the socket\n");
+    }
 
-        ~TcpSocket() {
-            close(this->serverSocket);
-        }
+    this->socketFileDescriptor = socket(AF_INET, SOCK_STREAM, 0);
+    if (this->socketFileDescriptor == -1) {
+        throw std::runtime_error("Failed to create the socket.\n");
+    }
+}
 
-        void bindSocket() {
-            bind(serverSocket, (struct sockaddr*)&address, sizeof(address));
-            if (listen(serverSocket, 5) == -1) {
-                std::cerr << "Failed to listen.\n";
-            }
-
-            // INET_ADDRSTRLEN = 16
-            char ipv4_address[INET_ADDRSTRLEN];
-            std::cout << "The server is listening on " << inet_ntop(AF_INET, &address.sin_addr, ipv4_address, INET_ADDRSTRLEN) << ":" << ntohs(address.sin_port) << "\n";
-        }
-
-        void startServer() {
-            std::cout << "the server should've started here. This is a placeholder.\n";
-        }
-
-    private:
-        sockaddr_in address {};
-        int serverSocket;
-
-};
+TCP::~TCP() {
+    close(this->socketFileDescriptor);
+}

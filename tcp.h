@@ -15,8 +15,8 @@ public:
     TCP(const TCP&) = delete;
     TCP& operator=(const TCP&) = delete;
 
-    bool bindAndListen(int backlog);
-    void serve(class IConnectionHandler& connectionHandler);
+    bool bindAndListen(int backlog = 128);
+    void serve(IConnectionHandler& connectionHandler);
 
     ssize_t receive(int fd, void* buffer, size_t len);
     bool sendAll(int fd, const void* data, size_t len);
@@ -24,7 +24,7 @@ public:
 private:
     
     int  socketFileDescriptor;
-    sockaddr_in address;
+    sockaddr_in address {};
 };
 
 #endif
