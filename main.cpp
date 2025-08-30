@@ -31,8 +31,10 @@ public:
 
 int main() {
     TCP server("127.0.0.1", 8888);
-    server.bindAndListen();        // default backlog 128
+    server.bindAndListen();
+
     EchoHandler handler;
-    server.serve(handler);         // loop forever
+    server.serve(handler);
+    
     return 0;
 }
