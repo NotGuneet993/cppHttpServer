@@ -23,7 +23,7 @@ public:
 
 private:
     
-    int  socketFileDescriptor;
+    int  socketFd {-1};
     sockaddr_in address {};
 };
 
