@@ -17,9 +17,8 @@ private:
     std::unordered_map<std::string, int> colors;
 
     void sendBadRequest(int fd, TCP& io);
-    bool readHeaders(int fd, TCP&io, std::string& bytes, size_t maxHeaderBytes);
-    bool parseRequestLine(const std::string& head, std::string& method, std::string& target, std::string& version);
-    std::string buildResponse(int status, std::string_view reason, std::string_view contentType, std::string_view body, bool close);
+    // bool parseRequestLine(const std::string& head, std::string& method, std::string& target, std::string& version);
+    // std::string buildResponse(int status, std::string_view reason, std::string_view contentType, std::string_view body, bool close);
 
 };
 
