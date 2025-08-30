@@ -20,12 +20,14 @@ public:
 
 private:
 
-    int counter;
-    std::unordered_map<std::string, int> colors;
+    std::unordered_map<std::string, int> stocks;
 
     std::string buildResponse(int status, std::string_view reason, std::string_view contentType, std::string_view body);
     void sendBadRequest(int fd, TCP& io);
+
     RequestLine parseRequestLine(const std::string& message);
+    std::string renderPage(const std::unordered_map<std::string, int>& map) const;
+
     void handleGet(int fd, TCP& io, std::string& target);
 
 };

@@ -39,17 +39,46 @@ Http::RequestLine Http::parseRequestLine(const std::string& message) {
     return rl;
 }
 
+std::string Http::renderPage(const std::unordered_map<std::string, int>& map) const {
+    std::string html = 
+        "<!DOCTYPE html>\n"
+        "<html lang=\"en\">\n"
+        "<head>\n"
+        "  <meta charset=\"utf-8\">\n"
+        "  <title>Stock holdings</title>\n"
+        "</head>\n"
+        "<body>\n"
+        "  <h1>Stock holdings</h1>\n";
+
+    if (map.empty()) {
+        html += "  <p>You don’t own any stock.</p>\n";
+    } else {
+        html += 
+            "  <table>\n"
+            "    <tr><th>Ticker</th><th>Quantity</th></tr>\n";
+        
+        for (auto& [ticker, count] : map) {
+            html += "    <tr><td>" + ticker + "</td><td>" + std::to_string(count) + "</td></tr>\n";
+        }
+        html += "  </table>\n";
+    }   
+
+    html +=
+        "</body>\n"
+        "</html>\n";
+
+    return html;
+}
+
 void Http::handleGet(int fd, TCP& io, std::string& target) {
-    int counter {};
     std::string response;
     std::string body;
 
     if (target == "/") {
-        ++counter;
-        body = "<html><h1>visits: " + std::to_string(counter) + "</h1></html>";
+        body = renderPage(this->stocks);
         response = buildResponse(200, "OK", "text/html; charset=utf-8", body);
     } else if (target == "/favicon.ico") {
-        response = buildResponse(204, "No Content", "text/html; charset=utf-8", "");
+        response = buildResponse(204, "No Content", "", "");
     } else {
         body = "<html><h1>404 Not Found</h1></html>";
         response = buildResponse(404, "Not Found", "text/html; charset=utf-8", body);
