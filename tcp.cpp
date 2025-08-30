@@ -1,5 +1,6 @@
 #include <iostream>
 #include "tcp.h"
+#include "connection.h"
 #include <sys/socket.h>
 #include <arpa/inet.h>
 #include <unistd.h>
@@ -45,6 +46,48 @@ bool TCP::bindAndListen(int backlog) {
 
     char ipv4_address[INET_ADDRSTRLEN];
     std::cout << "The server is listening on " << inet_ntop(AF_INET, &this->address.sin_addr, ipv4_address, INET_ADDRSTRLEN) << ":" << ntohs(this->address.sin_port) << "\n";
+
+    return true; 
+}
+
+void TCP::serve(IConnectionHandler& handler) {
+    while (true) {
+        int clientSocket = accept(this->socketFd, nullptr, nullptr);
+        if (clientSocket == -1) {
+            perror("accept");
+            throw std::runtime_error("Failed to accept the message.");
+        }
+
+        handler.handle(clientSocket, *this);
+        close(clientSocket);
+    } 
+}
+
+ssize_t TCP::receive(int fd, void* buffer, size_t len) {
+    while (true) {
+        ssize_t n = recv(fd, buffer, len, 0);
+        if (n >= 0) return n;
+        if (errno = EINTR) continue;
+
+        return -1;
+    }
+}
+
+bool TCP::sendAll(int fd, const void* data, size_t len) {
+    const char* p = static_cast<const char*>(data);
+    size_t sent = 0;
+
+    while (sent < len) {
+        ssize_t n = send(fd, p + sent, len - sent, 0);
+
+        if (n > 0) {
+            sent += static_cast<size_t>(n);
+        } else if( n == -1 && errno == EINTR) {
+            continue;
+        } else {
+            return false;
+        }
+    }
 
     return true;
 }
