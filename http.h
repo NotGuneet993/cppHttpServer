@@ -10,15 +10,23 @@ class Http : public IConnectionHandler {
 public:
 
     void handle(int fd, TCP& io) override;
+    
+    struct RequestLine {
+        std::string method;
+        std::string target;
+        std::string version;
+        bool valid {false};
+    };
 
 private:
 
     int counter;
     std::unordered_map<std::string, int> colors;
 
+    std::string buildResponse(int status, std::string_view reason, std::string_view contentType, std::string_view body);
     void sendBadRequest(int fd, TCP& io);
-    // bool parseRequestLine(const std::string& head, std::string& method, std::string& target, std::string& version);
-    // std::string buildResponse(int status, std::string_view reason, std::string_view contentType, std::string_view body, bool close);
+    RequestLine parseRequestLine(const std::string& message);
+    void handleGet(int fd, TCP& io, std::string& target);
 
 };
 

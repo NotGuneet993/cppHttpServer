@@ -1,18 +1,61 @@
 #include <iostream>
-
 #include "http.h"
 #include "tcp.h"
 
+std::string Http::buildResponse(int status, std::string_view reason, std::string_view contentType, std::string_view body) {
+    std::string h = "HTTP/1.1 " + std::to_string(status) + " " + std::string(reason) + "\r\n";
+    if (!contentType.empty()) h += "Content-Type: " + std::string(contentType) + "\r\n";
+    h += "Content-Length: " + std::to_string(body.size()) + "\r\nConnection: close\r\n\r\n";
+
+    return h + std::string(body);
+}
+
 void Http::sendBadRequest(int fd, TCP& io) {
     const std::string badRequestBody = "<h1>400 bad request</h1>";
-    const std::string badRequestHeader =
-    "HTTP/1.1 400 Bad Request\r\n"
-    "Content-Type: text/html; charset=utf-8\r\n"
-    "Content-Length: " + std::to_string(badRequestBody.size()) + "\r\n"
-    "Connection: close\r\n\r\n";
+    const std::string response = buildResponse(400, "Bad Request", "text/html; charset=utf-8", badRequestBody);
+    io.sendAll(fd, response.data(), response.size());
+}
 
-    const std::string response = badRequestHeader + badRequestBody;
-    io.sendAll(fd, response.c_str(), response.size());
+Http::RequestLine Http::parseRequestLine(const std::string& message) {
+    Http::RequestLine rl;
+
+    auto crlfLocation = message.find("\r\n");
+    if (crlfLocation == std::string::npos) return rl;
+
+    std::string_view firstLine(message.data(), crlfLocation);
+
+    size_t space1 = firstLine.find(' ');
+    if (space1 == std::string::npos) return rl;
+
+    size_t space2 = firstLine.find(' ', space1 + 1);
+    if (space2 == std::string::npos) return rl;
+
+    rl.method = std::string(firstLine.substr(0, space1));
+    rl.target = std::string(firstLine.substr(space1 + 1, space2 - space1 - 1));
+    rl.version = std::string(firstLine.substr(space2 + 1));
+
+    std::cout << rl.method << " " << rl.target << " " << rl.version << "\n";
+    rl.valid = true;
+    return rl;
+}
+
+void Http::handleGet(int fd, TCP& io, std::string& target) {
+    int counter {};
+    std::string response;
+    std::string body;
+
+    if (target == "/") {
+        ++counter;
+        body = "<html><h1>visits: " + std::to_string(counter) + "</h1></html>";
+        response = buildResponse(200, "OK", "text/html; charset=utf-8", body);
+    } else if (target == "/favicon.ico") {
+        response = buildResponse(204, "No Content", "text/html; charset=utf-8", "");
+    } else {
+        body = "<html><h1>404 Not Found</h1></html>";
+        response = buildResponse(404, "Not Found", "text/html; charset=utf-8", body);
+    }
+
+    io.sendAll(fd, response.data(), response.size());
 }
 
 void Http::handle(int fd, TCP& io) {
@@ -45,77 +88,26 @@ void Http::handle(int fd, TCP& io) {
         }
     }
     
-    // the header is valid so start branching. 
-    auto crlfLocation = message.find("\r\n");
-    if (crlfLocation == std::string::npos) {
+    Http::RequestLine rl = parseRequestLine(message);
+    if (!rl.valid) {
         Http::sendBadRequest(fd, io);
         return;
     }
 
-    std::string_view firstLine(message.data(), crlfLocation);
-
-    size_t space1 = firstLine.find(' ');
-    if (space1 == std::string::npos) {
-        Http::sendBadRequest(fd, io);
-        return; 
-    }
-
-    size_t space2 = firstLine.find(' ', space1 + 1);
-    if (space2 == std::string::npos) {
+    if (rl.version != "HTTP/1.1" && rl.version != "HTTP/1.0") {
         Http::sendBadRequest(fd, io);
         return;
     }
 
-    std::string method(firstLine.substr(0, space1));
-    std::string target(firstLine.substr(space1 + 1, space2 - space1 - 1));
-    std::string version(firstLine.substr(space2 + 1));
-
-    std::cout << method << " " << target << " " << version << "\n";         // for debugging
-
-    if (version != "HTTP/1.1" && version != "HTTP/1.0") {
-        Http::sendBadRequest(fd, io);
-        return;
-    }
-
-    if (method != "GET") {
+    if (rl.method == "GET") handleGet(fd, io, rl.target);
+    else if (rl.method == "POST") std::cout << "implementing...\n";
+    else if (rl.method == "PUT") std::cout << "implementing...\n";
+    else if (rl.method == "DELETE") std::cout << "implementing...\n";
+    else {
         const std::string body = "<h1>405 Method Not Allowed</h1>";
-        std::string hdr =
-            "HTTP/1.1 405 Method Not Allowed\r\n"
-            "Allow: GET\r\n"
-            "Content-Type: text/html; charset=utf-8\r\n"
-            "Content-Length: " + std::to_string(body.size()) + "\r\n"
-            "Connection: close\r\n\r\n";
-        std::string resp = hdr + body;
+        std::string resp = buildResponse(405, "Method Not Allowed", "text/html; charset=utf-8", body);
         io.sendAll(fd, resp.data(), resp.size());
-        return;
     }
 
-    int counter {};
-    int status = 200;
-    std::string reason = "OK";
-    std::string ctype  = "text/html; charset=utf-8";
-    std::string body;
-
-    if (target == "/") {
-        ++counter;
-        body = "<html><h1>visits: " + std::to_string(counter) + "</h1></html>";
-    } else if (target == "/favicon.ico") {
-        status = 204; reason = "No Content";
-        ctype.clear();
-        body.clear();
-    } else {
-        status = 404; reason = "Not Found";
-        body = "<html><h1>404 Not Found</h1></html>";
-    }
-
-    // build + send response
-    std::string headers = "HTTP/1.1 " + std::to_string(status) + " " + reason + "\r\n";
-    if (!ctype.empty())
-        headers += "Content-Type: " + ctype + "\r\n";
-    headers += "Content-Length: " + std::to_string(body.size()) + "\r\n"
-            "Connection: close\r\n\r\n";
-
-    std::string response = headers + body;
-    io.sendAll(fd, response.data(), response.size());
     return;
 }
