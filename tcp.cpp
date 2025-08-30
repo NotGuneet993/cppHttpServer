@@ -67,7 +67,7 @@ ssize_t TCP::receive(int fd, void* buffer, size_t len) {
     while (true) {
         ssize_t n = recv(fd, buffer, len, 0);
         if (n >= 0) return n;
-        if (errno = EINTR) continue;
+        if (errno == EINTR) continue;
 
         return -1;
     }
