@@ -48,7 +48,17 @@ std::string Http::renderPage(const std::unordered_map<std::string, int>& map) co
         "  <title>Stock holdings</title>\n"
         "</head>\n"
         "<body>\n"
-        "  <h1>Stock holdings</h1>\n";
+        "  <h1>Stock holdings</h1>\n"
+        "    <h2>Update holdings</h2>\n"
+        "    <form action=\"/holdings\" method=\"post\">\n"
+        "    <label>Ticker:\n"
+        "        <input name=\"ticker\" pattern=\"[A-Za-z]{1,10}\" required>\n"
+        "    </label>\n"
+        "    <label>Quantity:\n"
+        "        <input name=\"qty\" type=\"number\" step=\"1\" required>\n"
+        "    </label>\n"
+        "    <button type=\"submit\">Save</button>\n"
+        "    </form>\n";
 
     if (map.empty()) {
         html += "  <p>You don’t own any stock.</p>\n";
@@ -79,6 +89,20 @@ void Http::handleGet(int fd, TCP& io, std::string& target) {
         response = buildResponse(200, "OK", "text/html; charset=utf-8", body);
     } else if (target == "/favicon.ico") {
         response = buildResponse(204, "No Content", "", "");
+    } else {
+        body = "<html><h1>404 Not Found</h1></html>";
+        response = buildResponse(404, "Not Found", "text/html; charset=utf-8", body);
+    }
+
+    io.sendAll(fd, response.data(), response.size());
+}
+
+void Http::handlePost(int fd, TCP& io, std::string& target) {
+    std::string response;
+    std::string body;
+
+    if (target == "/r") {
+        return;
     } else {
         body = "<html><h1>404 Not Found</h1></html>";
         response = buildResponse(404, "Not Found", "text/html; charset=utf-8", body);
@@ -129,9 +153,7 @@ void Http::handle(int fd, TCP& io) {
     }
 
     if (rl.method == "GET") handleGet(fd, io, rl.target);
-    else if (rl.method == "POST") std::cout << "implementing...\n";
-    else if (rl.method == "PUT") std::cout << "implementing...\n";
-    else if (rl.method == "DELETE") std::cout << "implementing...\n";
+    else if (rl.method == "POST") handlePost(fd, io, rl.target);
     else {
         const std::string body = "<h1>405 Method Not Allowed</h1>";
         std::string resp = buildResponse(405, "Method Not Allowed", "text/html; charset=utf-8", body);
