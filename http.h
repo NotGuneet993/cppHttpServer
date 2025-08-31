@@ -29,7 +29,7 @@ private:
     std::string renderPage(const std::unordered_map<std::string, int>& map) const;
 
     void handleGet(int fd, TCP& io, std::string& target);
-    void handlePost(int fd, TCP& io, std::string& target);
+    void handlePost(int fd, TCP& io, std::string& target, std::string& message);
 
 };
 

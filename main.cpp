@@ -3,7 +3,7 @@
 #include "http.h"
 
 int main() {
-    TCP server("0.0.0.0", 8888);
+    TCP server("127.0.0.1", 8888);
     server.bindAndListen();
 
     Http handler;
