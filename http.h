@@ -21,6 +21,7 @@ public:
 private:
 
     std::unordered_map<std::string, int> stocks;
+    std::mutex stocksMutex;
 
     std::string buildResponse(int status, std::string_view reason, std::string_view contentType, std::string_view body);
     void sendBadRequest(int fd, TCP& io);

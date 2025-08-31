@@ -85,7 +85,12 @@ void Http::handleGet(int fd, TCP& io, std::string& target) {
     std::string body;
 
     if (target == "/") {
-        body = renderPage(this->stocks);
+        std::unordered_map<std::string, int> snapshot;
+        {
+            std::lock_guard<std::mutex> lock(stocksMutex);
+            snapshot = this->stocks;
+        }
+        body = renderPage(snapshot);
         response = buildResponse(200, "OK", "text/html; charset=utf-8", body);
     } else if (target == "/favicon.ico") {
         response = buildResponse(204, "No Content", "", "");
@@ -176,13 +181,14 @@ void Http::handlePost(int fd, TCP& io, std::string& target, std::string& message
         c = static_cast<char>(std::toupper(static_cast<unsigned char>(c)));
     }
 
-    int current = stocks[ticker];
-    int updated = current + qtyChange;
+    {
+        std::lock_guard<std::mutex> lock(stocksMutex);
+        int current = stocks[ticker];
+        int updated = current + qtyChange;
+        if (updated <= 0) stocks.erase(ticker);
+        else stocks[ticker] = updated;
+    }
 
-    if (updated <= 0)
-        stocks.erase(ticker);
-    else
-        stocks[ticker] = updated;
 
     response =
         "HTTP/1.1 303 See Other\r\n"

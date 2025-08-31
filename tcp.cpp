@@ -6,6 +6,7 @@
 #include <unistd.h>
 #include <cstdlib>
 #include <stdexcept>
+#include <thread>
 
 TCP::TCP(const std::string& ip, int port) {
     this->address.sin_family = AF_INET;
@@ -55,11 +56,18 @@ void TCP::serve(IConnectionHandler& handler) {
         int clientSocket = accept(this->socketFd, nullptr, nullptr);
         if (clientSocket == -1) {
             perror("accept");
-            throw std::runtime_error("Failed to accept the message.");
+            std::cerr << "Failed to accept the message.\n";
+            continue;
         }
-
-        handler.handle(clientSocket, *this);
-        close(clientSocket);
+        
+        std::thread([this, clientSocket, &handler](){
+            try {
+                handler.handle(clientSocket, *this);
+            } catch (std::exception& e) {
+                std::cerr << e.what();
+            }
+            close(clientSocket);
+        }).detach();
     } 
 }
 
