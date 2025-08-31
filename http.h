@@ -5,6 +5,7 @@
 #include <string>
 #include <string_view>
 #include "connection.h"
+#include <mutex>
 
 class Http : public IConnectionHandler {
 public:

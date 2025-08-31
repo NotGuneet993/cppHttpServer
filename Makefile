@@ -1,4 +1,4 @@
-CXX      := clang++
+CXX      := g++
 CXXFLAGS := -std=c++20 -Wall -Wextra -pthread
 SRC      := main.cpp tcp.cpp http.cpp
 OBJ      := $(SRC:.cpp=.o)
