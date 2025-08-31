@@ -1,9 +1,13 @@
 #include <iostream>
+#include <random>
+#include <iomanip>
+#include <sstream>
 #include "http.h"
 #include "tcp.h"
 
-std::string Http::buildResponse(int status, std::string_view reason, std::string_view contentType, std::string_view body) {
+std::string Http::buildResponse(int status, std::string_view reason, std::string_view contentType, std::string_view body, std::string_view otherHeaders) {
     std::string h = "HTTP/1.1 " + std::to_string(status) + " " + std::string(reason) + "\r\n";
+    if (!otherHeaders.empty()) h += std::string(otherHeaders);
     if (!contentType.empty()) h += "Content-Type: " + std::string(contentType) + "\r\n";
     h += "Content-Length: " + std::to_string(body.size()) + "\r\nConnection: close\r\n\r\n";
 
@@ -80,35 +84,78 @@ std::string Http::renderPage(const std::unordered_map<std::string, int>& map) co
     return html;
 }
 
-void Http::handleGet(int fd, TCP& io, std::string& target) {
-    std::string response;
-    std::string body;
+bool Http::hasSession(const std::string& sid) {
+    std::lock_guard<std::mutex> lock{this->sessionsMutex};
+    return this->sessionsIds.find(sid) != this->sessionsIds.end();
+}
+
+std::string Http::createSessionId() {
+    std::random_device rd;
+    std::mt19937_64 gen(rd());
+    uint64_t p1 = gen(), p2 = gen();
+
+    std::ostringstream os;
+    os << std::hex << std::setw(16) << std::setfill('0') << p1 << std::setw(16) << std::setfill('0') << p2;
+    return os.str();
+}
+
+std::string Http::getCookieSid(std::string_view header) {
+    auto find_cookie = [](std::string_view lgStr, std::string_view smStr)->size_t {
+        for (size_t i = 0; i + smStr.size() <= lgStr.size(); ++i) {
+            bool ok = true;
+            for (size_t j = 0; j < smStr.size(); ++j) {
+                if (std::tolower((unsigned char)lgStr[i+j]) != std::tolower((unsigned char)smStr[j])) {
+                    ok = false;
+                    break;
+                }
+            }
+            if (ok) return i;
+        }
+        return std::string::npos;
+    };
+
+    size_t p = find_cookie(header, "Cookie:");
+    if (p == std::string::npos) return {};
+    size_t eol = header.find("\r\n", p);
+    if (eol == std::string::npos) eol = header.size();
+    std::string line(header.substr(p+7, eol - (p+7)));
+
+    auto k = line.find("sid=");
+    if (k == std::string::npos) return {};
+    k += 4;
+    size_t end = line.find(';', k);
+    return (end == std::string::npos) ? line.substr(k) : line.substr(k, end - k);
+}
+
+std::unordered_map<std::string, int>& Http::createCookieSession(const std::string& sid) {
+    std::lock_guard<std::mutex> lock{this->sessionsMutex};
+    return this->sessionsIds[sid];
+}
+
+void Http::handleGet(int fd, TCP& io, std::string& target, std::unordered_map<std::string,int>& holdings, bool setCookie, const std::string& sid) {
+    std::string response, body, extra;
+
+    if (setCookie) {
+        extra = "Set-Cookie: sid=" + sid + "; Path=/; HttpOnly\r\n";
+    }
 
     if (target == "/") {
-        std::unordered_map<std::string, int> snapshot;
-        {
-            std::lock_guard<std::mutex> lock(stocksMutex);
-            snapshot = this->stocks;
-        }
-        body = renderPage(snapshot);
-        response = buildResponse(200, "OK", "text/html; charset=utf-8", body);
+        body = renderPage(holdings);
+        response = buildResponse(200, "OK", "text/html; charset=utf-8", body, extra);
     } else if (target == "/favicon.ico") {
-        response = buildResponse(204, "No Content", "", "");
+        response = buildResponse(204, "No Content", "", "", extra);
     } else {
         body = "<html><h1>404 Not Found</h1></html>";
-        response = buildResponse(404, "Not Found", "text/html; charset=utf-8", body);
+        response = buildResponse(404, "Not Found", "text/html; charset=utf-8", body, extra);
     }
 
     io.sendAll(fd, response.data(), response.size());
 }
 
-void Http::handlePost(int fd, TCP& io, std::string& target, std::string& message) {
-    std::string response;
-    std::string body;
-
+void Http::handlePost(int fd, TCP& io, std::string& target, std::string& message, std::unordered_map<std::string,int>& holdings, bool setCookie, const std::string& sid) {
     if (target != "/holdings") {
-        body = "<html><h1>404 Not Found</h1></html>";
-        response = buildResponse(404, "Not Found", "text/html; charset=utf-8", body);
+        auto body = "<html><h1>404 Not Found</h1></html>";
+        auto response = buildResponse(404, "Not Found", "text/html; charset=utf-8", body);
         io.sendAll(fd, response.data(), response.size());
         return; 
     }
@@ -121,7 +168,6 @@ void Http::handlePost(int fd, TCP& io, std::string& target, std::string& message
     std::string_view head(message.data(), headerEnd);
     const size_t body_start = headerEnd + 4;
 
-    // --- case-insensitive find helper ---
     auto find_ci = [](std::string_view msgStr, std::string_view sub) -> size_t {
         for (size_t i = 0; i + sub.size() <= msgStr.size(); ++i) {
             bool eq = true;
@@ -182,17 +228,19 @@ void Http::handlePost(int fd, TCP& io, std::string& target, std::string& message
     }
 
     {
-        std::lock_guard<std::mutex> lock(stocksMutex);
-        int current = stocks[ticker];
+        std::lock_guard<std::mutex> lock(this->sessionsMutex);
+        int current = holdings[ticker];
         int updated = current + qtyChange;
-        if (updated <= 0) stocks.erase(ticker);
-        else stocks[ticker] = updated;
+        if (updated <= 0) holdings.erase(ticker);
+        else holdings[ticker] = updated;
     }
 
+    std::string extra;
+    if (setCookie) extra = "Set-Cookie: sid=" + sid + "; Path=/; HttpOnly\r\n";
 
-    response =
+    const std::string response =
         "HTTP/1.1 303 See Other\r\n"
-        "Location: /\r\n"
+        "Location: /\r\n" + extra +
         "Content-Length: 0\r\n"
         "Connection: close\r\n\r\n";
     io.sendAll(fd, response.data(), response.size());
@@ -239,8 +287,16 @@ void Http::handle(int fd, TCP& io) {
         return;
     }
 
-    if (rl.method == "GET") handleGet(fd, io, rl.target);
-    else if (rl.method == "POST") handlePost(fd, io, rl.target, message);
+    size_t headerEnd = message.find("\r\n\r\n");
+    std::string_view head(message.data(), headerEnd);
+
+    std::string sid = getCookieSid(head);
+    bool newSession = sid.empty() || !hasSession(sid);
+    if (newSession) sid = createSessionId();
+    auto& holdings = createCookieSession(sid);
+
+    if (rl.method == "GET") handleGet(fd, io, rl.target, holdings, newSession, sid);
+    else if (rl.method == "POST") handlePost(fd, io, rl.target, message, holdings, newSession, sid);
     else {
         const std::string body = "<h1>405 Method Not Allowed</h1>";
         std::string resp = buildResponse(405, "Method Not Allowed", "text/html; charset=utf-8", body);
